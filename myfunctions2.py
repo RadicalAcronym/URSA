@@ -160,6 +160,7 @@ class MyUrsaMin(tf.layers.Layer):  #this initializes between -1 and 1
     def compute_output_shape(self, input_shape):
         return(input_shape[0], self.output_dim)
 
+''' This is not yet working
 class MyUrsaSegMin(tf.layers.Layer):  #this initializes between -1 and 1 
     def __init__(self, output_dim, **kwargs):
         self.output_dim = output_dim
@@ -176,10 +177,10 @@ class MyUrsaSegMin(tf.layers.Layer):  #this initializes between -1 and 1
         diff = x[:,:,None,:]-self.stars[None,None,:,:] #difference between each input point and each star in the volume
         pointfeatures = tf.norm(diff, axis=3)   #euclidean distance between each input point and each star
         globalfeatures = K.min(pointfeatures, axis = 1) ## For each star, find the distance to the closest input point 
-        return tf.concat([pointfeatures,tf.tile(globalfeatures[:,None,:],(1,x.shape[1],1))],axis=2)
+        return tf.concat([x,tf.tile(globalfeatures[:,None,:],(1,x.shape[1],1))],axis=2)
     def compute_output_shape(self, input_shape):
         return(input_shape[0],input_shape[1], self.output_dim*2)
-
+'''
 
 class MyUrsaExp(tf.layers.Layer):  
     def __init__(self, output_dim, sigma=10, **kwargs):
