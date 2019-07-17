@@ -23,7 +23,7 @@ import numpy as np
 
 from myfunctions2 import *
 
-Nkernels = 32
+Nstars = 32
 gpus = 1
 
 #load the data
@@ -41,20 +41,14 @@ new_x_test = 2*new_x_test/max3-1
 new_y_train = keras.utils.to_categorical(y_train, 10)
 new_y_test = keras.utils.to_categorical(y_test, 10)
 
-
-# input shape is [total number of examples, number of points per example, dimensions of a point ]
-# example for mnist [60000, 312, 2]
-
-
-
-inputs = Input(shape=(maxpoints,new_x_train.shape[2]))
+inputs = Input(shape=(new_x_train.shape[1],new_x_train.shape[2]))
 #these first layers are 'data augmentation' layers
 x = MyAddScale(name='scale_augment')(inputs)
 x = MyAdd2DRotation(name='rotate_augment')(x)
 x = MyAddShift(name='shift_augment')(x)
 x = MyAddJitter(name='jitter_augment')(x)
 #This is the ursa layer to create a feature vector
-x = MyUrsaMin(Nkernels,name='cluster')(x)
+x = MyUrsaMin(Nstars,name='cluster')(x)
 x = Activation('relu')(x)
 x = BatchNormalization()(x)
 #these last layers do classification
