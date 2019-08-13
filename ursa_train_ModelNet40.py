@@ -20,7 +20,7 @@ the inputs don't have defaults and it isn't robust to leaving an input blank.
 Updated on Aug 8 to include rotation in the data augmentation
 """
 
-import os
+import os,sys
 import h5py
 import numpy as np
 

@@ -26,8 +26,10 @@ import random
 
 
 class MyAdd3DRotation(tf.layers.Layer):
-    def __init__(self, amount = .06, lower=-0.18, upper=.18, **kwargs):
-        self.amount = amount
+    def __init__(self, upper =.087, lower=None, **kwargs): #.087 is about 5 degrees
+        #upper and lower are in radians.  If you only specify 1, then it will be plus or minus that rotation amount
+        if lower ==None:
+            lower = -upper
         self.lower = lower
         self.upper = upper
         super(MyAdd3DRotation, self).__init__(**kwargs)
@@ -38,27 +40,60 @@ class MyAdd3DRotation(tf.layers.Layer):
         def noised():
             Ni = tf.shape(x)[0] #This is the number in the batch
             #get an angle to shift each image in the batch
-            anglesx = K.clip( self.amount*K.random_normal((Ni,)),   self.lower,   self.upper)
-            anglesy = K.clip( self.amount*K.random_normal((Ni,)),   self.lower,   self.upper)
-            anglesz = K.clip( self.amount*K.random_normal((Ni,)),   self.lower,   self.upper)
-            #We are going to post multiply the vector (x'=xR) with the matrix 
-            #rather than the normal way (x'=Rx)
-            #so we use the transpose of what is shown in literature for R
-            zeros = tf.zeros((Ni,))
-            ones = tf.ones((Ni,))
-            Rx = K.stack(  (K.stack((ones, zeros, zeros), axis=1),  
-                            K.stack((zeros, K.cos(anglesx),K.sin(anglesx)),axis=1)  ,
-                            K.stack((zeros, -K.sin(anglesx),K.cos(anglesx)),axis=1))   ,
-                         axis=1)
-            Ry = K.stack(  (K.stack((K.cos(anglesy), zeros, -K.sin(anglesy)),axis=1),  
-                            K.stack((zeros, ones, zeros),axis=1)  ,
-                            K.stack((K.sin(anglesy), zeros, K.cos(anglesy)),axis=1))   ,
-                         axis=1)
-            Rz = K.stack(  (K.stack((K.cos(anglesz), K.sin(anglesz), zeros),axis=1),  
-                            K.stack((-K.sin(anglesz), K.cos(anglesz),zeros),axis=1)  ,
-                            K.stack((zeros,zeros,ones),axis=1))   ,
-                         axis=1)
-            return tf.matmul(x,tf.matmul(Rx,tf.matmul(Ry,Rz))) 
+            """This is going to get a uniformly distributed random 3d vector 
+            of length 1.  This will  be the axis of rotation.
+            Then it will pick a random rotation amount around that axis. Amount 
+            of rotation is based on the input to the class.
+            It will use quaternion math to convert that axis and rotation to a 
+            rotation matrix.  
+            The rotation matrix will be the transpose of what is in the 
+            literature so we can do a post multiply rather than a pre multiply
+            so we don't have to change x around.
+            """
+            vz = tf.random_uniform((Ni,),  -1.0 , 1.0 )
+            theta = tf.random_uniform((Ni,), 0.0, 2*np.pi)
+            r = tf.sqrt(1-vz*vz)
+            vx = r * tf.cos(theta)
+            vy = r * tf.sin(theta)
+            # So (vx,vy,vz) is a point on the unit sphere with
+            # equal prob of being anywhere.
+            # This will be the axis of rotation
+
+            #Now pick the amount of the rotation
+            ang = tf.random_uniform((Ni,), self.lower, self.upper)
+            #apply this rotation axis selected above to create the quaternion
+            # the result is a quaternion (qw,qx,qy,qz)
+            #https://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
+            qw = tf.cos(ang/2)
+            sinangd2 = tf.sin(ang/2)
+            qx=vx*sinangd2
+            qy = vy*sinangd2
+            qz = vz*sinangd2
+
+            #so we have a quaternion that has (qw,qx,qy,qz)
+            #turn that into a rotation matrix:
+            #http://www.neil.dantam.name/note/dantam-quaternion.pdf
+            #and
+            #http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
+            #precompute some values
+            txx = 2*qx*qx
+            tyy = 2*qy*qy
+            tzz = 2*qz*qz
+            txy = 2*qx*qy
+            tyz = 2*qy*qz
+            txz = 2*qx*qz
+            txw = 2*qx*qw
+            tyw = 2*qy*qw
+            tzw = 2*qz*qw
+            
+            #this is the transpose of what is in the literature.
+            R = tf.stack([
+                    tf.stack([1-tyy-tzz, txy-tzw, txz+tyw],axis=-1),
+                    tf.stack([txy+tzw,1-txx-tzz,tyz-txw],axis=-1),
+                    tf.stack([txz-tyw,tyz+txw,1-txx-tyy],axis=-1)],
+                    axis=-1)
+            #remember because of the shape of x, must pust multiply with R    
+            return tf.matmul(x,R) 
         return K.in_train_phase(noised, x, training=training)
     def compute_output_shape(self, input_shape):
         return input_shape
